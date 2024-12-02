@@ -3,11 +3,15 @@ import {
   AuthUrlResponse,
   CallbackParams,
 } from "./models/oauth-models";
-import crypto, { randomUUID } from "crypto";
+
+function generateUUID(): string {
+  return crypto.randomUUID();
+}
 
 export class OAuth2Client {
   private config: OAuthConfig;
-  private readonly STATE_KEY = 'oauth_state';
+  private readonly STATE_KEY = "oauth_state";
+  private readonly TOKEN_KEY = "oauth_token";
   private popup: Window | null = null;
   private readonly POPUP_WIDTH = 500;
   private readonly POPUP_HEIGHT = 600;
@@ -28,6 +32,7 @@ export class OAuth2Client {
       "clientId",
       "redirectUri",
       "authEndpoint",
+      "tokenEndpoint",
     ];
     const missing = required.filter((field) => !config[field]);
 
@@ -38,7 +43,7 @@ export class OAuth2Client {
 
   public getAuthorizationUrl(): AuthUrlResponse {
     try {
-      const state = randomUUID();
+      const state = generateUUID();
 
       try {
         sessionStorage.setItem(this.STATE_KEY, state);
@@ -71,7 +76,7 @@ export class OAuth2Client {
     }
   }
 
-  public handleCallback(params: CallbackParams): string {
+  public async handleCallback(params: CallbackParams): Promise<string> {
     try {
       const { code, state, error, error_description } = params;
 
@@ -103,7 +108,16 @@ export class OAuth2Client {
         throw new Error("State validation failed - possible CSRF attack");
       }
 
-      return code;
+      const loginToken = await fetch(this.config.tokenEndpoint, {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      });
+
+      const token = await loginToken.json();
+
+      sessionStorage.setItem(this.TOKEN_KEY, token);
+
+      return token;
     } catch (error) {
       throw new Error(`Callback handling failed: ${(error as Error).message}`);
     }
@@ -112,25 +126,27 @@ export class OAuth2Client {
   public async authenticateWithPopup(): Promise<string> {
     try {
       const { url } = this.getAuthorizationUrl();
-      
+
       const left = window.screenX + (window.outerWidth - this.POPUP_WIDTH) / 2;
       const top = window.screenY + (window.outerHeight - this.POPUP_HEIGHT) / 2;
-      
+
       this.popup = window.open(
         url,
-        'OAuth2 Authentication',
+        "OAuth2 Authentication",
         `width=${this.POPUP_WIDTH},height=${this.POPUP_HEIGHT},left=${left},top=${top}`
       );
 
       if (!this.popup) {
-        throw new Error('Failed to open popup. Please check if popups are blocked.');
+        throw new Error(
+          "Failed to open popup. Please check if popups are blocked."
+        );
       }
 
       return new Promise((resolve, reject) => {
         const popupCheck = setInterval(() => {
           if (this.popup?.closed) {
             clearInterval(popupCheck);
-            reject(new Error('Authentication cancelled'));
+            reject(new Error("Authentication cancelled"));
           }
         }, 500);
 
@@ -139,10 +155,10 @@ export class OAuth2Client {
             return;
           }
 
-          if (event.data?.type === 'oauth2-callback') {
-            window.removeEventListener('message', messageHandler);
+          if (event.data?.type === "oauth2-callback") {
+            window.removeEventListener("message", messageHandler);
             clearInterval(popupCheck);
-            
+
             if (this.popup) {
               this.popup.close();
               this.popup = null;
@@ -157,7 +173,7 @@ export class OAuth2Client {
           }
         };
 
-        window.addEventListener('message', messageHandler);
+        window.addEventListener("message", messageHandler);
       });
     } catch (error) {
       if (this.popup) {
@@ -166,5 +182,24 @@ export class OAuth2Client {
       }
       throw error;
     }
+  }
+
+  public logout(): void {
+    try {
+      sessionStorage.removeItem(this.TOKEN_KEY);
+      sessionStorage.removeItem(this.STATE_KEY);
+
+      if (this.config.logoutEndpoint) {
+        window.location.href = this.config.logoutEndpoint;
+      }
+
+      window.dispatchEvent(new CustomEvent("oauth2Logout"));
+    } catch (error) {
+      throw new Error(`Logout failed: ${(error as Error).message}`);
+    }
+  }
+
+  public isAuthenticated(): boolean {
+    return !!sessionStorage.getItem(this.TOKEN_KEY);
   }
 }

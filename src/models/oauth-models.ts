@@ -3,6 +3,8 @@ export interface OAuthConfig {
   redirectUri: string;
   authEndpoint: string;
   scope?: string;
+  tokenEndpoint: string;
+  logoutEndpoint?: string;
 }
 
 export interface AuthUrlResponse {

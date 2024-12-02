@@ -1,17 +1,24 @@
 {
-  "name": "oauth-client",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "@travelaps/oauth2-client",
+  "version": "1.0.3",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "description": "A TypeScript OAuth 2.0 client implementation with popup authentication support",
   "scripts": {
     "test": "jest",
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "keywords": [
+    "oauth",
+    "oauth2",
+    "authentication",
+    "typescript",
+    "popup"
+  ],
+  "author": "EmreGulbay",
+  "license": "MIT",
   "dependencies": {
-    "crypto": "^1.0.1",
     "typescript": "^5.7.2"
   },
   "devDependencies": {
