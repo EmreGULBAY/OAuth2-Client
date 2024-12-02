@@ -7,7 +7,10 @@ import crypto, { randomUUID } from "crypto";
 
 export class OAuth2Client {
   private config: OAuthConfig;
-  private readonly STATE_KEY = "oauth_state";
+  private readonly STATE_KEY = 'oauth_state';
+  private popup: Window | null = null;
+  private readonly POPUP_WIDTH = 500;
+  private readonly POPUP_HEIGHT = 600;
 
   constructor(config: OAuthConfig) {
     try {
@@ -103,6 +106,65 @@ export class OAuth2Client {
       return code;
     } catch (error) {
       throw new Error(`Callback handling failed: ${(error as Error).message}`);
+    }
+  }
+
+  public async authenticateWithPopup(): Promise<string> {
+    try {
+      const { url } = this.getAuthorizationUrl();
+      
+      const left = window.screenX + (window.outerWidth - this.POPUP_WIDTH) / 2;
+      const top = window.screenY + (window.outerHeight - this.POPUP_HEIGHT) / 2;
+      
+      this.popup = window.open(
+        url,
+        'OAuth2 Authentication',
+        `width=${this.POPUP_WIDTH},height=${this.POPUP_HEIGHT},left=${left},top=${top}`
+      );
+
+      if (!this.popup) {
+        throw new Error('Failed to open popup. Please check if popups are blocked.');
+      }
+
+      return new Promise((resolve, reject) => {
+        const popupCheck = setInterval(() => {
+          if (this.popup?.closed) {
+            clearInterval(popupCheck);
+            reject(new Error('Authentication cancelled'));
+          }
+        }, 500);
+
+        const messageHandler = (event: MessageEvent) => {
+          if (new URL(this.config.redirectUri).origin !== event.origin) {
+            return;
+          }
+
+          if (event.data?.type === 'oauth2-callback') {
+            window.removeEventListener('message', messageHandler);
+            clearInterval(popupCheck);
+            
+            if (this.popup) {
+              this.popup.close();
+              this.popup = null;
+            }
+
+            try {
+              const code = this.handleCallback(event.data.params);
+              resolve(code);
+            } catch (error) {
+              reject(error);
+            }
+          }
+        };
+
+        window.addEventListener('message', messageHandler);
+      });
+    } catch (error) {
+      if (this.popup) {
+        this.popup.close();
+        this.popup = null;
+      }
+      throw error;
     }
   }
 }
