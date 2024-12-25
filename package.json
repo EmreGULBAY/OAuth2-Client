@@ -1,6 +1,6 @@
 {
   "name": "@travelaps/oauth2-client",
-  "version": "1.0.3",
+  "version": "1.0.6",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "description": "A TypeScript OAuth 2.0 client implementation with popup authentication support",
@@ -21,6 +21,9 @@
   "dependencies": {
     "typescript": "^5.7.2"
   },
+  "files": [
+    "dist"
+  ],
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "jest": "^29.7.0",
